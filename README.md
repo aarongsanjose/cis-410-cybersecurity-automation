@@ -18,3 +18,9 @@ infrastructure as code, and cloud deployment.
 
 ## Fun Fact
 [I am actually colorblind, with red and greens, deuteranopia]# CIS 410: Cybersecurity Automation
+
+## My Week 2 Infrastructure
+
+Runner VM: sanjose-runner
+Runner IP: 10.129.3.80
+Pipeline status: [![Hello Pipeline](https://github.com/aarongsanjose/cis-410-cybersecurity-automation/actions/workflows/hello-pipeline.yml/badge.svg)](https://github.com/aarongsanjose/cis-410-cybersecurity-automation/actions/workflows/hello-pipeline.yml)
