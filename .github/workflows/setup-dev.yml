@@ -14,8 +14,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          printf '%s' "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
-          sed -i 's/\r$//' /tmp/deploy_key
+          printf '%s' "${{ secrets.DEV_SSH_KEY_B64 }}" | base64 -d > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
 
           echo "=== KEY SIZE ==="
@@ -40,8 +39,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          printf '%s' "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
-          sed -i 's/\r$//' /tmp/deploy_key
+          printf '%s' "${{ secrets.DEV_SSH_KEY_B64 }}" | base64 -d > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           ssh-keygen -y -f /tmp/deploy_key >/dev/null
 
@@ -71,8 +69,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          printf '%s' "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
-          sed -i 's/\r$//' /tmp/deploy_key
+          printf '%s' "${{ secrets.DEV_SSH_KEY_B64 }}" | base64 -d > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           ssh-keygen -y -f /tmp/deploy_key >/dev/null
 
