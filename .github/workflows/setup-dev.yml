@@ -14,8 +14,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
+          cat > /tmp/deploy_key <<'KEY'
+          ${{ secrets.DEV_SSH_KEY }}
+          KEY
+
           chmod 600 /tmp/deploy_key
+          ssh-keygen -y -f /tmp/deploy_key >/dev/null
 
           ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" "set -e; if sudo -n true 2>/dev/null; then echo '=== Passwordless sudo already configured — skipping ==='; else echo '=== Configuring passwordless sudo ==='; echo '${{ secrets.SUDO_PASS }}' | sudo -S bash -c 'echo \"${{ secrets.DEV_USER }} ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/${{ secrets.DEV_USER }} && chmod 0440 /etc/sudoers.d/${{ secrets.DEV_USER }}'; echo '=== Passwordless sudo configured ==='; fi"
 
@@ -26,8 +30,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
+          cat > /tmp/deploy_key <<'KEY'
+          ${{ secrets.DEV_SSH_KEY }}
+          KEY
+
           chmod 600 /tmp/deploy_key
+          ssh-keygen -y -f /tmp/deploy_key >/dev/null
 
           ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" 'bash -s' <<'EOF'
           set -e
@@ -55,22 +63,22 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
+          cat > /tmp/deploy_key <<'KEY'
+          ${{ secrets.DEV_SSH_KEY }}
+          KEY
+
           chmod 600 /tmp/deploy_key
+          ssh-keygen -y -f /tmp/deploy_key >/dev/null
 
           ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" 'bash -s' <<'EOF'
           set -e
-
           echo "=== Logged in as: $(whoami) ==="
           echo "=== Docker version ==="
           docker --version
-
           echo "=== Docker Compose version ==="
           docker compose version
-
           echo "=== Deployment directory ==="
           ls -la /opt/app
-
           echo "=== Dev server is ready for deployment ==="
           EOF
 
