@@ -1,25 +1,77 @@
-name: Deploy Flask container
-run: |
-  echo "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
-  chmod 600 /tmp/deploy_key,
+name: "Setup — Dev Server"
 
-    ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no ${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }} << 'EOF'
-    set -e
-    cd /opt/app
+on:
+  workflow_dispatch:
 
-    export DEPLOY_TIME="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-    export GITHUB_SHA="${{ github.sha }}"
-    export GITHUB_REF_NAME="${{ github.ref_name }}"
+jobs:
+  setup:
+    name: "Install Docker on Dev VM"
+    runs-on: self-hosted
 
-    echo "=== Deploying ${GITHUB_SHA:0:7} from ${GITHUB_REF_NAME} ==="
+    steps:
+      - name: Configure passwordless sudo
+        shell: bash
+        run: |
+          set -euo pipefail
 
-    sudo docker compose down --remove-orphans
+          echo "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
 
-    DEPLOY_TIME="${DEPLOY_TIME}" GITHUB_SHA="${GITHUB_SHA}" GITHUB_REF_NAME="${GITHUB_REF_NAME}" \
-    sudo docker compose up -d --build
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" "set -e; if sudo -n true 2>/dev/null; then echo '=== Passwordless sudo already configured — skipping ==='; else echo '=== Configuring passwordless sudo ==='; echo '${{ secrets.SUDO_PASS }}' | sudo -S bash -c 'echo \"${{ secrets.DEV_USER }} ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/${{ secrets.DEV_USER }} && chmod 0440 /etc/sudoers.d/${{ secrets.DEV_USER }}'; echo '=== Passwordless sudo configured ==='; fi"
 
-    echo "=== Deploy complete ==="
-    sudo docker compose ps
-    EOF
+          rm -f /tmp/deploy_key
 
-    rm /tmp/deploy_key
+      - name: Install Docker on Dev VM
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" 'bash -s' <<'EOF'
+          set -e
+
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "=== Docker not found — installing ==="
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            sudo usermod -aG docker "$(whoami)"
+            sudo mkdir -p /opt/app
+            sudo chown "$(whoami)":"$(whoami)" /opt/app
+            rm -f get-docker.sh
+            echo "=== Docker installed successfully ==="
+          else
+            echo "=== Docker already present — skipping install ==="
+            sudo mkdir -p /opt/app
+            sudo chown "$(whoami)":"$(whoami)" /opt/app
+          fi
+          EOF
+
+          rm -f /tmp/deploy_key
+
+      - name: Verify Docker
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" 'bash -s' <<'EOF'
+          set -e
+
+          echo "=== Logged in as: $(whoami) ==="
+          echo "=== Docker version ==="
+          docker --version
+
+          echo "=== Docker Compose version ==="
+          docker compose version
+
+          echo "=== Deployment directory ==="
+          ls -la /opt/app
+
+          echo "=== Dev server is ready for deployment ==="
+          EOF
+
+          rm -f /tmp/deploy_key
