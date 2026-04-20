@@ -9,71 +9,90 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Configure passwordless sudo
-        shell: bash
+      - name: Validate secrets and write deploy key
         run: |
           set -euo pipefail
 
-          printf '%s' "${{ secrets.DEV_SSH_KEY_B64 }}" | base64 -d > /tmp/deploy_key
+          if [ -z "${{ secrets.DEV_SSH_KEY }}" ]; then
+            echo "ERROR: DEV_SSH_KEY is empty or not being passed to Actions."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.DEV_HOST }}" ]; then
+            echo "ERROR: DEV_HOST is empty."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.DEV_USER }}" ]; then
+            echo "ERROR: DEV_USER is empty."
+            exit 1
+          fi
+
+          printf '%s\n' "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
 
           echo "=== KEY SIZE ==="
           wc -c /tmp/deploy_key
-
           echo "=== FIRST LINE ==="
           head -n 1 /tmp/deploy_key
-
           echo "=== LAST LINE ==="
           tail -n 1 /tmp/deploy_key
 
-          echo "=== VALIDATING KEY ==="
-          ssh-keygen -y -f /tmp/deploy_key >/dev/null
-          echo "=== KEY VALID ==="
+          grep -q '^-----BEGIN OPENSSH PRIVATE KEY-----$' /tmp/deploy_key || {
+            echo "ERROR: Key does not start with OPENSSH PRIVATE KEY header."
+            exit 1
+          }
 
-          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" "set -e; if sudo -n true 2>/dev/null; then echo '=== Passwordless sudo already configured — skipping ==='; else echo '=== Configuring passwordless sudo ==='; echo '${{ secrets.SUDO_PASS }}' | sudo -S bash -c 'echo \"${{ secrets.DEV_USER }} ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/${{ secrets.DEV_USER }} && chmod 0440 /etc/sudoers.d/${{ secrets.DEV_USER }}'; echo '=== Passwordless sudo configured ==='; fi"
+          grep -q '^-----END OPENSSH PRIVATE KEY-----$' /tmp/deploy_key || {
+            echo "ERROR: Key does not end with OPENSSH PRIVATE KEY footer."
+            exit 1
+          }
 
-          rm -f /tmp/deploy_key
-
-      - name: Install Docker on Dev VM
-        shell: bash
+      - name: Configure passwordless sudo
         run: |
           set -euo pipefail
 
-          printf '%s' "${{ secrets.DEV_SSH_KEY_B64 }}" | base64 -d > /tmp/deploy_key
-          chmod 600 /tmp/deploy_key
-          ssh-keygen -y -f /tmp/deploy_key >/dev/null
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }} \
+            "set -e
+            if sudo -n true 2>/dev/null; then
+              echo '=== Passwordless sudo already configured — skipping ==='
+            else
+              echo '=== Configuring passwordless sudo ==='
+              echo '${{ secrets.SUDO_PASS }}' | sudo -S bash -c \
+                'echo \"${{ secrets.DEV_USER }} ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/${{ secrets.DEV_USER }} && chmod 0440 /etc/sudoers.d/${{ secrets.DEV_USER }}'
+              echo '=== Passwordless sudo configured ==='
+            fi"
 
-          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" 'bash -s' <<'EOF'
+      - name: Install Docker on Dev VM
+        run: |
+          set -euo pipefail
+
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }} << 'EOF'
           set -e
-
           if ! command -v docker >/dev/null 2>&1; then
             echo "=== Docker not found — installing ==="
             curl -fsSL https://get.docker.com -o get-docker.sh
             sudo sh get-docker.sh
-            sudo usermod -aG docker "$(whoami)"
+            sudo usermod -aG docker $(whoami)
             sudo mkdir -p /opt/app
-            sudo chown "$(whoami)":"$(whoami)" /opt/app
+            sudo chown $(whoami):$(whoami) /opt/app
             rm -f get-docker.sh
             echo "=== Docker installed successfully ==="
           else
             echo "=== Docker already present — skipping install ==="
             sudo mkdir -p /opt/app
-            sudo chown "$(whoami)":"$(whoami)" /opt/app
+            sudo chown $(whoami):$(whoami) /opt/app
           fi
           EOF
 
-          rm -f /tmp/deploy_key
-
       - name: Verify Docker
-        shell: bash
         run: |
           set -euo pipefail
 
-          printf '%s' "${{ secrets.DEV_SSH_KEY_B64 }}" | base64 -d > /tmp/deploy_key
-          chmod 600 /tmp/deploy_key
-          ssh-keygen -y -f /tmp/deploy_key >/dev/null
-
-          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" 'bash -s' <<'EOF'
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }} << 'EOF'
           set -e
           echo "=== Logged in as: $(whoami) ==="
           echo "=== Docker version ==="
@@ -85,4 +104,6 @@ jobs:
           echo "=== Dev server is ready for deployment ==="
           EOF
 
-          rm -f /tmp/deploy_key
+      - name: Cleanup key
+        if: always()
+        run: rm -f /tmp/deploy_key
