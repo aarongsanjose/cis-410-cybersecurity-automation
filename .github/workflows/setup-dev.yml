@@ -13,8 +13,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${{ secrets.DEV_SSH_KEY }}" ]; then
-            echo "ERROR: DEV_SSH_KEY is empty or not being passed to Actions."
+          if [ -z "${{ secrets.DEV_SSH_KEY_B64 }}" ]; then
+            echo "ERROR: DEV_SSH_KEY_B64 is empty."
             exit 1
           fi
 
@@ -28,25 +28,13 @@ jobs:
             exit 1
           fi
 
-          printf '%s\n' "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
+          echo "${{ secrets.DEV_SSH_KEY_B64 }}" | base64 -d > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
 
           echo "=== KEY SIZE ==="
           wc -c /tmp/deploy_key
-          echo "=== FIRST LINE ==="
-          head -n 1 /tmp/deploy_key
-          echo "=== LAST LINE ==="
-          tail -n 1 /tmp/deploy_key
-
-          grep -q '^-----BEGIN OPENSSH PRIVATE KEY-----$' /tmp/deploy_key || {
-            echo "ERROR: Key does not start with OPENSSH PRIVATE KEY header."
-            exit 1
-          }
-
-          grep -q '^-----END OPENSSH PRIVATE KEY-----$' /tmp/deploy_key || {
-            echo "ERROR: Key does not end with OPENSSH PRIVATE KEY footer."
-            exit 1
-          }
+          echo "=== VALIDATING KEY ==="
+          ssh-keygen -l -f /tmp/deploy_key
 
       - name: Configure passwordless sudo
         run: |
@@ -81,7 +69,7 @@ jobs:
             rm -f get-docker.sh
             echo "=== Docker installed successfully ==="
           else
-            echo "=== Docker already present — skipping install ==="
+            echo "=== Docker already present — skipping ==="
             sudo mkdir -p /opt/app
             sudo chown $(whoami):$(whoami) /opt/app
           fi
