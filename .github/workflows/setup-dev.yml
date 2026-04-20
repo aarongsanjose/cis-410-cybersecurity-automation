@@ -14,12 +14,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          cat > /tmp/deploy_key <<'KEY'
-          ${{ secrets.DEV_SSH_KEY }}
-          KEY
-
+          printf '%s\n' "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
+
+          echo "=== FIRST LINE ==="
+          head -n 1 /tmp/deploy_key
+
+          echo "=== LAST LINE ==="
+          tail -n 1 /tmp/deploy_key
+
+          echo "=== VALIDATING KEY ==="
           ssh-keygen -y -f /tmp/deploy_key >/dev/null
+          echo "=== KEY VALID ==="
 
           ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "${{ secrets.DEV_USER }}@${{ secrets.DEV_HOST }}" "set -e; if sudo -n true 2>/dev/null; then echo '=== Passwordless sudo already configured — skipping ==='; else echo '=== Configuring passwordless sudo ==='; echo '${{ secrets.SUDO_PASS }}' | sudo -S bash -c 'echo \"${{ secrets.DEV_USER }} ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/${{ secrets.DEV_USER }} && chmod 0440 /etc/sudoers.d/${{ secrets.DEV_USER }}'; echo '=== Passwordless sudo configured ==='; fi"
 
@@ -30,10 +36,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          cat > /tmp/deploy_key <<'KEY'
-          ${{ secrets.DEV_SSH_KEY }}
-          KEY
-
+          printf '%s\n' "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           ssh-keygen -y -f /tmp/deploy_key >/dev/null
 
@@ -63,10 +66,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          cat > /tmp/deploy_key <<'KEY'
-          ${{ secrets.DEV_SSH_KEY }}
-          KEY
-
+          printf '%s\n' "${{ secrets.DEV_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           ssh-keygen -y -f /tmp/deploy_key >/dev/null
 
